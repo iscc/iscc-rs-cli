@@ -2,10 +2,11 @@ extern crate mime_guess;
 extern crate clap;
 extern crate walkdir;
 use std::error::Error;
+static BATCH_MAX_DIRLEVEL: usize = 1000;
 
 use iscc::{content_id_image, content_id_text, data_id, instance_id, meta_id};
 
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App, SubCommand, AppSettings};
 
 use walkdir::WalkDir;
 
@@ -15,25 +16,27 @@ use std::fs;
 
 fn main() -> Result<(), Box<dyn Error>> {
     
-    let matches = App::new("ISCC cli for the iscc-rs library (https://github.com/iscc/iscc-rs)")
+    let matches = App::new("iscc-cli")
+                          .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1")
                           .author("Thilo Hille<hillethilo@gmail.com>")
-                          .about("ISCC cli to ")
+                          .about("ISCC cli for the iscc-rs library (https://github.com/iscc/iscc-rs)")
                           .subcommand(SubCommand::with_name("gen")
                                       .about("Generate ISCC Code for FILE.")
                                       .version("0.1")
                                       .author("Thilo Hille<hillethilo@gmail.com>")
-                                      .arg(Arg::with_name("guess")
-                                          .short("g")
-                                          .help("Guess title (first line of text).")
-                                      )
                                       .arg(Arg::with_name("file")
                                           .short("f")
                                           .long("file")
                                           .help("File to create ISCC code for.")
                                           .value_name("FILE")
                                           .takes_value(true)
+                                          .required(true)
                                        )
+                                      .arg(Arg::with_name("guess")
+                                          .short("g")
+                                          .help("Guess title (first line of text).")
+                                      )
                                       .arg(Arg::with_name("title")
                                           .short("t")
                                           .long("title")
@@ -59,6 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                           .help("Path to create iscc codes for.")
                                           .value_name("PATH")
                                           .takes_value(true)
+                                          .required(true)
                                        )
                                       .arg(Arg::with_name("recursive")
                                           .short("r")
@@ -117,19 +121,21 @@ enum Command {
     Batch (String, bool, bool),
 }
 
+/*
 struct ContentId {
     code: String,
     gmt: String,
     file: Path,
 }
+*/
 
 impl Command {
     fn execute(&self) -> Result<String,Box<dyn Error>> {
         match self {
             Command::Gen(file, title, extra, _guess, showdetail) => {
                 //eprintln!("Generating {} {} {}",file, title, extra);
-                let (mid, _title, _extra) = meta_id("Title of Content", title);
                 let cid = get_content_id(file, false)?;
+                let (mid, _title, _extra) = meta_id(title, extra);
                 let did = data_id(file)?;
                 let (iid, _tophash) = instance_id(file)?;
 
@@ -146,7 +152,12 @@ impl Command {
             },
             Command::Batch(dir, recurse, guess) => {
                 //eprintln!("Batching {} {} {}",dir, recurse, guess);
-                for e in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+                //let walklevel: usize = BATCH_MAX_ITER;
+                let walklevel = match recurse {
+                    true => BATCH_MAX_DIRLEVEL,
+                    false => 1,
+                };
+                for e in WalkDir::new(dir).max_depth(walklevel).into_iter().filter_map(|e| e.ok()) {
                     if e.metadata().unwrap().is_file() {
                         //eprint!("{}".e.path().display().unwrap());
                         let cmd = Command::Gen(
@@ -183,6 +194,7 @@ enum GeneralMediaType {
 
 fn get_gmt(file: &str) -> GeneralMediaType {
     let guess = mime_guess::from_path(file);
+    //todo: fix unwrap, crashes on unknown extensions
     let mimetype = guess.first_raw().unwrap();
     eprintln!("mime-type: {}", mimetype);
     let mut parts = mimetype.split("/");
