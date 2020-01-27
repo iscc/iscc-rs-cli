@@ -132,18 +132,16 @@ struct ContentId {
 impl Command {
     fn execute(&self) -> Result<String,Box<dyn Error>> {
         match self {
-            Command::Gen(file, title, extra, _guess, showdetail) => {
+            Command::Gen(file, title, extra, guess, showdetail) => {
                 //eprintln!("Generating {} {} {}",file, title, extra);
-                let cid = get_content_id(file, false)?;
-                let (mid, _title, _extra) = meta_id(title, extra);
-                let did = data_id(file)?;
-                let (iid, _tophash) = instance_id(file)?;
+
+                let iscc = get_iscc_id(file, false, title, extra, *guess)?;
 
                 // Join ISCC Components to fully qualified ISCC Code
-                let iscc_code = [mid, cid, did, iid].join("-");
+                let iscc_code = [iscc.mid, iscc.cid, iscc.did, iscc.iid].join("-");
                 if *showdetail {
                     let filename = Path::new(file).file_name().unwrap();
-                    println!("ISCC: {},{:?},<Todo>", iscc_code, filename);
+                    println!("ISCC: {},{:?},{}", iscc_code, filename,iscc.gmt);
                 }
                 else{
                     println!("ISCC: {}", iscc_code);
@@ -183,6 +181,7 @@ impl Command {
     }
 }
 
+
 #[derive(Debug)]
 enum GeneralMediaType {
     Text(String),
@@ -191,8 +190,52 @@ enum GeneralMediaType {
     Video(String),
     Unknown,
 }
+impl GeneralMediaType {
+    fn extract(&self, file: &String) -> Result<(String,String,String),Box<dyn Error>> {
+        match self {
+            GeneralMediaType::Text(_ft) if _ft =="plain" => {
+                    let contents = match fs::read_to_string(file) {
+                        Ok(content) => content,
+                        Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
+                    };
+                    let firstline = contents.lines().next().unwrap();
+                    Ok((contents.to_string(),
+                        firstline.to_string(),
+                        "".to_string(),
+                        )
+                    )
+                },
+            GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                    let contents = match fs::read_to_string(file) {
+                        Ok(content) => content,
+                        Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
+                    };
+                    let firstline = contents.lines().next().unwrap();
+                    Ok((contents.to_string(),
+                        firstline.to_string(),
+                        "".to_string(),
+                        )
+                    )
+                },
+            _ => Ok(("".to_string(),
+                        "".to_string(),
+                        "".to_string(),
+                        )
+                ),
+        }
+    }
+    fn get_gmt_string(&self) -> String {
+        match self {
+            GeneralMediaType::Text(_ft) => "text".to_string(),
+            GeneralMediaType::Image(_ft) => "image".to_string(),
+            GeneralMediaType::Audio(_ft) => "audio".to_string(),
+            GeneralMediaType::Video(_ft) => "video".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
+}
 
-fn get_gmt(file: &str) -> GeneralMediaType {
+fn get_gmt_from_file(file: &str) -> GeneralMediaType {
     let guess = mime_guess::from_path(file);
     //todo: fix unwrap, crashes on unknown extensions
     let mimetype = guess.first_raw().unwrap();
@@ -202,6 +245,7 @@ fn get_gmt(file: &str) -> GeneralMediaType {
     let ft = parts.next().unwrap();
     match gmt {
         "text"  => GeneralMediaType::Text(String::from(ft)),
+        "application" if ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" => GeneralMediaType::Text(String::from(ft)),
         "image" => GeneralMediaType::Image(String::from(ft)),
         "audio" => GeneralMediaType::Audio(String::from(ft)),
         "video" => GeneralMediaType::Video(String::from(ft)),
@@ -209,17 +253,33 @@ fn get_gmt(file: &str) -> GeneralMediaType {
     }
 }
 
-fn get_content_id(file: &str, partial: bool) -> Result<String, String> {
-    let mediatype = get_gmt(file);
+#[derive(Debug)]
+struct Iscc {
+    mid:    String,
+    cid:    String,
+    did:    String,
+    iid:    String,
+    gmt:    String,
+    title:  String,
+    extra:  String,
+}
+
+fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc, String> {
+    let mediatype = get_gmt_from_file(file);
     eprintln!("mediatype: {:?}", mediatype);
-    match mediatype {
+    let mut extract = mediatype.extract(&file.to_string()).unwrap_or(("".to_string(), "".to_string(), "".to_string()));
+    if !guess {
+        extract.1 = title.to_string();
+        extract.2 = extra.to_string();
+    }
+    let (extracted_content, extracted_title, extracted_extra) = extract;
+    let (mid, _title, _extra) = meta_id(&extracted_title, &extracted_extra);
+    let did = data_id(file).unwrap();
+    let (iid, _tophash) = instance_id(file).unwrap();
+    
+    let cid = match &mediatype {
         GeneralMediaType::Text(_ft) => {  
-            //no errorhandling in content_id_text 
-            let contents = match fs::read_to_string(file) {
-                Ok(content) => content,
-                Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
-            };
-            Ok(content_id_text(&contents, partial))
+            Ok(content_id_text(&extracted_content, partial))
         },
         GeneralMediaType::Image(_ft) => {  
             match content_id_image(file, partial) {
@@ -236,5 +296,17 @@ fn get_content_id(file: &str, partial: bool) -> Result<String, String> {
         _ => {
             Err("Unknown mediatype".to_string())
         }
-    }
+    }?;
+    let iscc = Iscc{
+        mid: mid,
+        cid: cid,
+        did: did,
+        iid: iid,
+        gmt: mediatype.get_gmt_string(),
+        title: extracted_title,
+        extra: extracted_extra,
+        };
+    Ok(iscc)
+    
 }
+
