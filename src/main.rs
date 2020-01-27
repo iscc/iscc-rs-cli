@@ -199,10 +199,7 @@ impl GeneralMediaType {
     fn extract(&self, file: &String) -> Result<(String,String,String),Box<dyn Error>> {
         match self {
             GeneralMediaType::Text(_ft) if _ft =="plain" => {
-                    let contents = match fs::read_to_string(file) {
-                        Ok(content) => content,
-                        Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
-                    };
+                    let contents = fs::read_to_string(file)?;
                     let mut firstline = "";
                     for l in contents.lines() {
                         if l.trim() != "" {
@@ -217,7 +214,7 @@ impl GeneralMediaType {
                     )
                 },
             GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" => {
-                    let mut mediafile = Docx::open(file).unwrap();
+                    let mut mediafile = Docx::open(file)?;
                     let mut contents = String::new();
                     let _ = mediafile.read_to_string(&mut contents);
                     let mut firstline = "";
@@ -234,7 +231,7 @@ impl GeneralMediaType {
                     )
                 },
             GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.spreadsheetml.sheet" => {
-                    let mut mediafile = Xlsx::open(file).unwrap();
+                    let mut mediafile = Xlsx::open(file)?;
                     let mut contents = String::new();
                     let _ = mediafile.read_to_string(&mut contents);
                     let mut firstline = "";
@@ -251,7 +248,7 @@ impl GeneralMediaType {
                     )
                 },
             GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.presentationml.presentation" => {
-                    let mut mediafile = Pptx::open(file).unwrap();
+                    let mut mediafile = Pptx::open(file)?;
                     let mut contents = String::new();
                     let _ = mediafile.read_to_string(&mut contents);
                     let mut firstline = "";
@@ -268,10 +265,7 @@ impl GeneralMediaType {
                     )
                 },
             GeneralMediaType::Text(_ft) => {
-                    let contents = match fs::read_to_string(file) {
-                        Ok(content) => content,
-                        Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
-                    };
+                    let contents = fs::read_to_string(file)?;
                     let mut firstline = "";
                     for l in contents.lines() {
                         if l.trim() != "" {
