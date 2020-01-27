@@ -193,7 +193,6 @@ enum GeneralMediaType {
     Image(String),
     Audio(String),
     Video(String),
-    Unknown,
 }
 impl GeneralMediaType {
     fn extract(&self, file: &String) -> Result<(String,String,String),Box<dyn Error>> {
@@ -292,29 +291,31 @@ impl GeneralMediaType {
             GeneralMediaType::Image(_ft) => "image".to_string(),
             GeneralMediaType::Audio(_ft) => "audio".to_string(),
             GeneralMediaType::Video(_ft) => "video".to_string(),
-            _ => "unknown".to_string(),
         }
     }
 }
 
-fn get_gmt_from_file(file: &str) -> GeneralMediaType {
+fn get_gmt_from_file(file: &str) -> Result<GeneralMediaType,String> {
     let guess = mime_guess::from_path(file);
     //todo: fix unwrap, crashes on unknown extensions
+    if guess.count() == 0 {
+        return Err(format!("{} -- Unknown file-extension", file).to_string());
+    }
     let mimetype = guess.first_raw().unwrap();
-    eprintln!("mime-type: {}", mimetype);
+    //eprintln!("mime-type: {}", mimetype);
     let mut parts = mimetype.split("/");
     let gmt = parts.next().unwrap();
     let ft = parts.next().unwrap();
     match gmt {
-        "text"  => GeneralMediaType::Text(String::from(ft)),
+        "text"  => Ok(GeneralMediaType::Text(String::from(ft))),
         "application" if ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" 
         || ft == "vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
         || ft == "vnd.openxmlformats-officedocument.presentationml.presentation"
-         => GeneralMediaType::Text(String::from(ft)),
-        "image" => GeneralMediaType::Image(String::from(ft)),
-        "audio" => GeneralMediaType::Audio(String::from(ft)),
-        "video" => GeneralMediaType::Video(String::from(ft)),
-        _       => GeneralMediaType::Unknown,
+         => Ok(GeneralMediaType::Text(String::from(ft))),
+        "image" => Ok(GeneralMediaType::Image(String::from(ft))),
+        "audio" => Ok(GeneralMediaType::Audio(String::from(ft))),
+        "video" => Ok(GeneralMediaType::Video(String::from(ft))),
+        _       => Err(format!("{} -- Mediatype {} nor implemented", file, mimetype).to_string()),
     }
 }
 
@@ -331,8 +332,8 @@ struct Iscc {
 }
 
 fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc, String> {
-    let mediatype = get_gmt_from_file(file);
-    eprintln!("mediatype: {:?}", mediatype);
+    let mediatype = get_gmt_from_file(file)?;
+    //eprintln!("mediatype: {:?}", mediatype);
     let mut extract = mediatype.extract(&file.to_string()).unwrap_or(("".to_string(), "".to_string(), "".to_string()));
     if !guess {
         extract.1 = title.to_string();
@@ -359,9 +360,6 @@ fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool)
         GeneralMediaType::Video(_ft) => {  
             Err("Mediatype not implemented yet".to_string())
         },
-        _ => {
-            Err("Unknown mediatype".to_string())
-        }
     }?;
     let iscc = Iscc{
         mid: mid,
