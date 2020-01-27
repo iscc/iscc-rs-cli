@@ -328,7 +328,6 @@ struct Iscc {
     gmt:    String,
     title:  String,
     extra:  String,
-    //content:  String,
 }
 
 fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc,Box<dyn Error>> {
@@ -369,7 +368,6 @@ fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool)
         gmt: mediatype.get_gmt_string(),
         title: extracted_title,
         extra: extracted_extra,
-        //content: extracted_content,
         };
     eprintln!("{:?}",iscc);
     Ok(iscc)
