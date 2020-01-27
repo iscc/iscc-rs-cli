@@ -331,7 +331,7 @@ struct Iscc {
     //content:  String,
 }
 
-fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc, String> {
+fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc,Box<dyn Error>> {
     let mediatype = get_gmt_from_file(file)?;
     //eprintln!("mediatype: {:?}", mediatype);
     let mut extract = mediatype.extract(&file.to_string()).unwrap_or(("".to_string(), "".to_string(), "".to_string()));
@@ -341,8 +341,8 @@ fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool)
     }
     let (extracted_content, extracted_title, extracted_extra) = extract;
     let (mid, _title, _extra) = meta_id(&extracted_title, &extracted_extra);
-    let did = data_id(file).unwrap();
-    let (iid, _tophash) = instance_id(file).unwrap();
+    let did = data_id(file)?;
+    let (iid, _tophash) = instance_id(file)?;
     
     let cid = match &mediatype {
         GeneralMediaType::Text(_ft) => {  
