@@ -1,6 +1,8 @@
 extern crate mime_guess;
 extern crate clap;
 extern crate walkdir;
+extern crate dotext;
+
 use std::error::Error;
 static BATCH_MAX_DIRLEVEL: usize = 1000;
 
@@ -9,6 +11,9 @@ use iscc::{content_id_image, content_id_text, data_id, instance_id, meta_id};
 use clap::{Arg, App, SubCommand, AppSettings};
 
 use walkdir::WalkDir;
+
+use dotext::*;
+use std::io::Read;
 
 use std::path::Path;
 
@@ -198,7 +203,13 @@ impl GeneralMediaType {
                         Ok(content) => content,
                         Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
                     };
-                    let firstline = contents.lines().next().unwrap();
+                    let mut firstline = "";
+                    for l in contents.lines() {
+                        if l.trim() != "" {
+                            firstline = l;
+                            break;
+                        }
+                    }
                     Ok((contents.to_string(),
                         firstline.to_string(),
                         "".to_string(),
@@ -206,11 +217,68 @@ impl GeneralMediaType {
                     )
                 },
             GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                    let mut mediafile = Docx::open(file).unwrap();
+                    let mut contents = String::new();
+                    let _ = mediafile.read_to_string(&mut contents);
+                    let mut firstline = "";
+                    for l in contents.lines() {
+                        if l.trim() != "" {
+                            firstline = l;
+                            break;
+                        }
+                    }
+                    Ok((contents.to_string(),
+                        firstline.to_string(),
+                        "".to_string(),
+                        )
+                    )
+                },
+            GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.spreadsheetml.sheet" => {
+                    let mut mediafile = Xlsx::open(file).unwrap();
+                    let mut contents = String::new();
+                    let _ = mediafile.read_to_string(&mut contents);
+                    let mut firstline = "";
+                    for l in contents.lines() {
+                        if l.trim() != "" {
+                            firstline = l;
+                            break;
+                        }
+                    }
+                    Ok((contents.to_string(),
+                        firstline.to_string(),
+                        "".to_string(),
+                        )
+                    )
+                },
+            GeneralMediaType::Text(_ft) if _ft =="vnd.openxmlformats-officedocument.presentationml.presentation" => {
+                    let mut mediafile = Pptx::open(file).unwrap();
+                    let mut contents = String::new();
+                    let _ = mediafile.read_to_string(&mut contents);
+                    let mut firstline = "";
+                    for l in contents.lines() {
+                        if l.trim() != "" {
+                            firstline = l;
+                            break;
+                        }
+                    }
+                    Ok((contents.to_string(),
+                        firstline.to_string(),
+                        "".to_string(),
+                        )
+                    )
+                },
+            GeneralMediaType::Text(_ft) => {
                     let contents = match fs::read_to_string(file) {
                         Ok(content) => content,
                         Err(error) => format!("Could not read file: {} {}",file, error).to_string(),
                     };
-                    let firstline = contents.lines().next().unwrap();
+                    let mut firstline = "";
+                    for l in contents.lines() {
+                        if l.trim() != "" {
+                            firstline = l;
+                            break;
+                        }
+                    }
                     Ok((contents.to_string(),
                         firstline.to_string(),
                         "".to_string(),
@@ -245,7 +313,10 @@ fn get_gmt_from_file(file: &str) -> GeneralMediaType {
     let ft = parts.next().unwrap();
     match gmt {
         "text"  => GeneralMediaType::Text(String::from(ft)),
-        "application" if ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" => GeneralMediaType::Text(String::from(ft)),
+        "application" if ft =="vnd.openxmlformats-officedocument.wordprocessingml.document" 
+        || ft == "vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+        || ft == "vnd.openxmlformats-officedocument.presentationml.presentation"
+         => GeneralMediaType::Text(String::from(ft)),
         "image" => GeneralMediaType::Image(String::from(ft)),
         "audio" => GeneralMediaType::Audio(String::from(ft)),
         "video" => GeneralMediaType::Video(String::from(ft)),
@@ -262,6 +333,7 @@ struct Iscc {
     gmt:    String,
     title:  String,
     extra:  String,
+    //content:  String,
 }
 
 fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc, String> {
@@ -305,7 +377,9 @@ fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool)
         gmt: mediatype.get_gmt_string(),
         title: extracted_title,
         extra: extracted_extra,
+        //content: extracted_content,
         };
+    eprintln!("{:?}",iscc);
     Ok(iscc)
     
 }
