@@ -2,13 +2,13 @@ use std::process::Command;  // Run programs
 use assert_cmd::prelude::*; // Add methods on commands
 use predicates::prelude::*; // Used for writing assertions
 use tempfile::NamedTempFile;
-use std::io::{self, Write};
+use std::io::{Write};
 
 
 // Text files
 #[test]
 fn test_text_file() -> Result<(), Box<dyn std::error::Error>> {
-    let mut file = NamedTempFile::new()?;
+    let file = NamedTempFile::new()?;
     let mut persisted_file = file.persist("/tmp/test.txt")?;
     writeln!(persisted_file, "Lorem ipsum dolor sit amet, \nconsetetur sadipscing 
     elitr, sed diam \nnonumy eirmod tempor invidunt ut labore et dolore 
