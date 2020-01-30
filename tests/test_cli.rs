@@ -38,6 +38,19 @@ fn test_text_file() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn test_html_file() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = Command::cargo_bin("iscc-cli")?;
+    cmd.arg("gen")
+        .arg("-f")
+        .arg("./tests/test_data/text/demo.html");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("CTMjk4o5H96BV-CDagDc9smMbFs-CRFfZgmkBbNRU"));
+
+    Ok(())
+}
+
+#[test]
 fn test_docx_file() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("iscc-cli")?;
     cmd.arg("gen")

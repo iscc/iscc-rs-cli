@@ -12,6 +12,7 @@ mime_guess = "2.0.1"
 clap = "2.33.0"
 walkdir = "2.3.1"
 dotext = "0.1.1" 
+html2text = "*"
 
 [dev-dependencies]
 assert_cmd = "0.10"

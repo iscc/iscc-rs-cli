@@ -2,6 +2,7 @@ extern crate mime_guess;
 extern crate clap;
 extern crate walkdir;
 extern crate dotext;
+extern crate html2text;
 
 use std::error::Error;
 static BATCH_MAX_DIRLEVEL: usize = 1000;
@@ -199,6 +200,23 @@ impl GeneralMediaType {
         match self {
             GeneralMediaType::Text(_ft) if _ft =="plain" => {
                     let contents = fs::read_to_string(file)?;
+                    let mut firstline = "";
+                    for l in contents.lines() {
+                        if l.trim() != "" {
+                            firstline = l;
+                            break;
+                        }
+                    }
+                    Ok((contents.to_string(),
+                        firstline.to_string(),
+                        "".to_string(),
+                        )
+                    )
+                },
+            GeneralMediaType::Text(_ft) if _ft =="html" => {
+                    let width: usize = 72;
+                    let htmlfile = std::fs::File::open(file)?;
+                    let contents = html2text::from_read(htmlfile, width);
                     let mut firstline = "";
                     for l in contents.lines() {
                         if l.trim() != "" {
