@@ -4,6 +4,8 @@ extern crate walkdir;
 extern crate dotext;
 extern crate html2text;
 
+pub mod tika;
+
 use std::error::Error;
 static BATCH_MAX_DIRLEVEL: usize = 1000;
 
@@ -57,15 +59,34 @@ fn main() -> Result<(), Box<dyn Error>> {
                                           .value_name("TEXT")
                                           .takes_value(true)
                                        )
+                                       .arg(Arg::with_name("tika")
+                                               .short("k")
+                                               .long("tika")
+                                               .help("Use tika for setup")
+                                       )
+                                       .arg(Arg::with_name("host")
+                                               .short("h")
+                                               .long("host")
+                                               .help("hostname/ip-address of tika-server")
+                                               .value_name("TIKAHOST")
+                                               .takes_value(true)
+                                       )
+                                       .arg(Arg::with_name("port")
+                                               .short("p")
+                                               .long("port")
+                                               .help("port of tika-server")
+                                               .value_name("PORT")
+                                               .takes_value(true)
+                                       )
                             )
                           .subcommand(SubCommand::with_name("batch")
                                       .about("Create ISCC Codes for all files in PATH.")
                                       .version("0.1")
                                       .author("Thilo Hille<hillethilo@gmail.com>")
-                                      .arg(Arg::with_name("path")
-                                          .short("p")
-                                          .long("path")
-                                          .help("Path to create iscc codes for.")
+                                      .arg(Arg::with_name("dir")
+                                          .short("d")
+                                          .long("dir")
+                                          .help("Dirctory to create iscc codes for.")
                                           .value_name("PATH")
                                           .takes_value(true)
                                           .required(true)
@@ -79,6 +100,25 @@ fn main() -> Result<(), Box<dyn Error>> {
                                           .short("g")
                                           .long("guess")
                                           .help("Guess title (first line of text).")
+                                       )
+                                       .arg(Arg::with_name("tika")
+                                               .short("k")
+                                               .long("tika")
+                                               .help("Use tika for setup")
+                                       )
+                                       .arg(Arg::with_name("host")
+                                               .short("h")
+                                               .long("host")
+                                               .help("tikahost")
+                                               .value_name("TIKAHOST")
+                                               .takes_value(true)
+                                       )
+                                       .arg(Arg::with_name("port")
+                                               .short("p")
+                                               .long("port")
+                                               .help("port")
+                                               .value_name("PORT")
+                                               .takes_value(true)
                                        )
                             )
                             .arg(Arg::with_name("v")
@@ -98,6 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             matches.value_of("extra").unwrap_or("").to_string(),
             matches.is_present("guess"),
             false,
+            matches.is_present("tika"),
         );
         if matches.is_present("file") {
             cmd.execute()?;
@@ -109,7 +150,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             matches.value_of("path").unwrap_or(".").to_string(), 
             matches.is_present("recursive"), 
             matches.is_present("guess"),
+            matches.is_present("tika"),
         );
+        if matches.is_present("tika")  {
+            
+            cmd.execute()?;
+        }
         if matches.is_present("path") {
             cmd.execute()?;
         }
@@ -122,9 +168,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 enum Command {
     //Gen (file, title, extra, guess, detail)
-    Gen (String, String, String, bool, bool),
+    Gen (String, String, String, bool, bool, bool),
     //Batch (recurse, guess) 
-    Batch (String, bool, bool),
+    Batch (String, bool, bool, bool),
 }
 
 /*
@@ -138,10 +184,10 @@ struct ContentId {
 impl Command {
     fn execute(&self) -> Result<String,Box<dyn Error>> {
         match self {
-            Command::Gen(file, title, extra, guess, showdetail) => {
+            Command::Gen(file, title, extra, guess, showdetail, usetika) => {
                 //eprintln!("Generating {} {} {}",file, title, extra);
 
-                let iscc = get_iscc_id(file, false, title, extra, *guess)?;
+                let iscc = get_iscc_id(file, false, title, extra, *guess, *usetika)?;
 
                 // Join ISCC Components to fully qualified ISCC Code
                 let iscc_code = [iscc.mid, iscc.cid, iscc.did, iscc.iid].join("-");
@@ -154,7 +200,7 @@ impl Command {
                 }
                 Ok(iscc_code)
             },
-            Command::Batch(dir, recurse, guess) => {
+            Command::Batch(dir, recurse, guess, usetika) => {
                 //eprintln!("Batching {} {} {}",dir, recurse, guess);
                 //let walklevel: usize = BATCH_MAX_ITER;
                 let walklevel = match recurse {
@@ -169,7 +215,8 @@ impl Command {
                             "".to_string(), 
                             "".to_string(),
                             *guess,
-                            true
+                            true,
+                            *usetika,
                         );
                         let res = cmd.execute();
                         match res {
@@ -303,6 +350,24 @@ impl GeneralMediaType {
                 ),
         }
     }
+
+    fn extract_tika(&self, file: &String) -> Result<(String,String,String),Box<dyn Error>> {
+        let contents = tika::request::text(file).unwrap();
+        eprintln!("tika extract");
+        let mut firstline = "";
+        for l in contents.lines() {
+            if l.trim() != "" {
+                firstline = l;
+                break;
+            }
+        }
+        Ok((contents.to_string(),
+            firstline.to_string(),
+            "".to_string(),
+            )
+        )
+    }
+
     fn get_gmt_string(&self) -> String {
         match self {
             GeneralMediaType::Text(_ft) => "text".to_string(),
@@ -313,6 +378,8 @@ impl GeneralMediaType {
     }
 }
 
+
+
 fn get_gmt_from_file(file: &str) -> Result<GeneralMediaType,String> {
     let guess = mime_guess::from_path(file);
     //todo: fix unwrap, crashes on unknown extensions
@@ -320,6 +387,7 @@ fn get_gmt_from_file(file: &str) -> Result<GeneralMediaType,String> {
         return Err(format!("{} -- Unknown file-extension", file).to_string());
     }
     let mimetype = guess.first_raw().unwrap();
+
     //eprintln!("mime-type: {}", mimetype);
     let mut parts = mimetype.split("/");
     let gmt = parts.next().unwrap();
@@ -337,6 +405,24 @@ fn get_gmt_from_file(file: &str) -> Result<GeneralMediaType,String> {
     }
 }
 
+fn get_gmt_from_tika(file: &str) -> Result<GeneralMediaType,String> {
+    eprintln!("tika detect");
+    let mimetype = tika::request::detect(file).unwrap();
+    //eprintln!("mime-type: {}", mimetype);
+    let mut parts = mimetype.split("/");
+    let gmt = parts.next().unwrap();
+    let ft = parts.next().unwrap();
+    match gmt {
+        "text"  => Ok(GeneralMediaType::Text(String::from(ft))),
+        "application" => Ok(GeneralMediaType::Text(String::from(ft))),
+        "image" => Ok(GeneralMediaType::Image(String::from(ft))),
+        "audio" => Ok(GeneralMediaType::Audio(String::from(ft))),
+        "video" => Ok(GeneralMediaType::Video(String::from(ft))),
+        _       => Err(format!("{} -- Mediatype {} nor implemented", file, mimetype).to_string()),
+    }
+}
+
+
 #[derive(Debug)]
 struct Iscc {
     mid:    String,
@@ -346,20 +432,27 @@ struct Iscc {
     gmt:    String,
     title:  String,
     extra:  String,
+    tophash:  String,
 }
 
-fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool) -> Result<Iscc,Box<dyn Error>> {
-    let mediatype = get_gmt_from_file(file)?;
+fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool, usetika: bool) -> Result<Iscc,Box<dyn Error>> {
+    let mediatype = match usetika {
+        false => get_gmt_from_file(file)?,
+        true => get_gmt_from_tika(file)?,
+    };
     //eprintln!("mediatype: {:?}", mediatype);
-    let mut extract = mediatype.extract(&file.to_string()).unwrap_or(("".to_string(), "".to_string(), "".to_string()));
+    let mut extract = match usetika {
+        false => mediatype.extract(&file.to_string()).unwrap_or(("".to_string(), "".to_string(), "".to_string())),
+        true => mediatype.extract_tika(&file.to_string()).unwrap_or(("".to_string(), "".to_string(), "".to_string())),
+    };
     if !guess {
         extract.1 = title.to_string();
         extract.2 = extra.to_string();
     }
     let (extracted_content, extracted_title, extracted_extra) = extract;
-    let (mid, _title, _extra) = meta_id(&extracted_title, &extracted_extra);
+    let (mid, metatitle, metaextra) = meta_id(&extracted_title, &extracted_extra);
     let did = data_id(file)?;
-    let (iid, _tophash) = instance_id(file)?;
+    let (iid, tophash) = instance_id(file)?;
     
     let cid = match &mediatype {
         GeneralMediaType::Text(_ft) => {  
@@ -384,8 +477,9 @@ fn get_iscc_id(file: &str, partial: bool, title: &str, extra: &str, guess: bool)
         did: did,
         iid: iid,
         gmt: mediatype.get_gmt_string(),
-        title: extracted_title,
-        extra: extracted_extra,
+        title: metatitle,
+        extra: metaextra,
+        tophash: tophash,
         };
     eprintln!("{:?}",iscc);
     Ok(iscc)
