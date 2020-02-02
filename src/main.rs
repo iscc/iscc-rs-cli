@@ -186,7 +186,6 @@ impl Command {
                             Ok(_result) => (),
                             Err(error) => {
                                 eprintln!("Error {:?}", error);
-                                ()
                             }
                         }
                     }
@@ -205,7 +204,7 @@ enum GeneralMediaType {
     Video(String),
 }
 impl GeneralMediaType {
-    fn extract(&self, file: &String) -> Result<(String, String, String), Box<dyn Error>> {
+    fn extract(&self, file: &str) -> Result<(String, String, String), Box<dyn Error>> {
         match self {
             GeneralMediaType::Text(_ft) if _ft == "plain" => {
                 let contents = fs::read_to_string(file)?;
@@ -308,7 +307,7 @@ fn get_gmt_from_file(file: &str) -> Result<GeneralMediaType, String> {
     }
     let mimetype = guess.first_raw().unwrap();
     //eprintln!("mime-type: {}", mimetype);
-    let mut parts = mimetype.split("/");
+    let mut parts = mimetype.split('/');
     let gmt = parts.next().unwrap();
     let ft = parts.next().unwrap();
     match gmt {
@@ -372,10 +371,10 @@ fn get_iscc_id(
         GeneralMediaType::Video(_ft) => Err("Mediatype not implemented yet".to_string()),
     }?;
     let iscc = Iscc {
-        mid: mid,
-        cid: cid,
-        did: did,
-        iid: iid,
+        mid,
+        cid,
+        did,
+        iid,
         gmt: mediatype.get_gmt_string(),
         title: extracted_title,
         extra: extracted_extra,
