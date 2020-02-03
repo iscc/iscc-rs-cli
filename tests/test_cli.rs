@@ -134,7 +134,7 @@ fn test_batch() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("iscc-cli")?;
     cmd.arg("batch")
         .arg("-r")
-        .arg("-p")
+        .arg("-d")
         .arg("./tests/test_data");
     cmd.assert()
         .success()
