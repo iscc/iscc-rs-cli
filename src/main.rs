@@ -97,13 +97,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             Arg::with_name("tika")
                 .short("k")
                 .long("tika")
-                .help("Use tika for setup"),
+                .help("Use Apache Tika for media-type detection and text-extraction"),
         )
         .arg(
             Arg::with_name("host")
                 .short("h")
                 .long("host")
-                .help("tikahost")
+                .help("Hostname or Ipaddress of a Apache Tika Server (default: localhost)")
                 .value_name("TIKAHOST")
                 .takes_value(true),
         )
@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Arg::with_name("port")
                 .short("p")
                 .long("port")
-                .help("port")
+                .help("Port of a Apache Tika Server (default: 9998)")
                 .value_name("PORT")
                 .takes_value(true),
         )
@@ -134,6 +134,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     .unwrap();
     if matches.is_present("tika") {
         tika::request::check(&tikaconfig)?;
+        eprintln!(
+            "Found tikaserver at {}:{}",
+            tikaconfig.host, tikaconfig.port
+        );
     }
     if let Some(matches) = matches.subcommand_matches("gen") {
         let file = matches.value_of("file").unwrap_or("").to_string();
@@ -196,9 +200,12 @@ impl Command<'_> {
                 let iscc_code = [iscc.mid, iscc.cid, iscc.did, iscc.iid].join("-");
                 if **showdetail {
                     let filename = Path::new(&file).file_name().unwrap();
-                    println!("ISCC: {},{:?},{}", iscc_code, filename, iscc.gmt);
+                    println!(
+                        "ISCC:{},{},{:?},{},{}",
+                        iscc_code, iscc.tophash, filename, iscc.gmt, iscc.title
+                    );
                 } else {
-                    println!("ISCC: {}", iscc_code);
+                    println!("ISCC:{}", iscc_code);
                 }
                 Ok(iscc_code)
             }
@@ -336,7 +343,7 @@ impl GeneralMediaType {
         file: &str,
     ) -> Result<(String, String, String), Box<dyn Error>> {
         let contents = tika::request::text(&tikaconfig, file).unwrap();
-        eprintln!("tika extract");
+        //eprintln!("tika extract");
         let mut firstline = "";
         for l in contents.lines() {
             if l.trim() != "" {
@@ -382,14 +389,14 @@ fn get_gmt_from_file(file: &str) -> Result<GeneralMediaType, String> {
         "audio" => Ok(GeneralMediaType::Audio(String::from(ft))),
         "video" => Ok(GeneralMediaType::Video(String::from(ft))),
         _ => Err(format!(
-            "{} -- Mediatype {} nor implemented",
+            "{} -- Unkown Mediatype {} not implemented",
             file, mimetype
         )),
     }
 }
 
 fn get_gmt_from_tika(tikaconfig: &TikaConfig, file: &str) -> Result<GeneralMediaType, String> {
-    eprintln!("tika detect");
+    //eprintln!("tika detect");
     let mimetype = tika::request::detect(&tikaconfig, file).unwrap();
     //eprintln!("mime-type: {}", mimetype);
     let mut parts = mimetype.split('/');
@@ -402,7 +409,7 @@ fn get_gmt_from_tika(tikaconfig: &TikaConfig, file: &str) -> Result<GeneralMedia
         "audio" => Ok(GeneralMediaType::Audio(String::from(ft))),
         "video" => Ok(GeneralMediaType::Video(String::from(ft))),
         _ => Err(format!(
-            "{} -- Mediatype {} nor implemented",
+            "{} -- Unkown Mediatype {} not implemented.",
             file, mimetype
         )),
     }
@@ -462,8 +469,12 @@ fn get_iscc_id(
                 image_error
             )),
         },
-        GeneralMediaType::Audio(_ft) => Err("Mediatype not implemented yet".to_string()),
-        GeneralMediaType::Video(_ft) => Err("Mediatype not implemented yet".to_string()),
+        GeneralMediaType::Audio(_ft) => {
+            Err(format!("{}: Mediatype Audio not implemented yet", file))
+        }
+        GeneralMediaType::Video(_ft) => {
+            Err(format!("{}: Mediatype Video not implemented yet", file))
+        }
     }?;
     let iscc = Iscc {
         mid,
@@ -475,6 +486,6 @@ fn get_iscc_id(
         extra: metaextra,
         tophash,
     };
-    eprintln!("{:?}", iscc);
+    //eprintln!("{:?}", iscc);
     Ok(iscc)
 }

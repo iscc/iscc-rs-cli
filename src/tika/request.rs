@@ -7,8 +7,8 @@ use std::str;
 
 #[derive(Debug)]
 pub struct TikaConfig {
-    host: String,
-    port: String,
+    pub host: String,
+    pub port: String,
     pub active: bool,
 }
 
