@@ -199,9 +199,12 @@ impl Command<'_> {
                 // Join ISCC Components to fully qualified ISCC Code
                 let iscc_code = [iscc.mid, iscc.cid, iscc.did, iscc.iid].join("-");
                 if **showdetail {
-                    let filename = Path::new(&file).file_name().unwrap();
+                    let mut filename = "";
+                    if let Some(i) = Path::new(&file).file_name().unwrap().to_str() {
+                        filename = i;
+                    }
                     println!(
-                        "ISCC:{},{},{:?},{},{}",
+                        "ISCC:{},{},{},{},{}",
                         iscc_code, iscc.tophash, filename, iscc.gmt, iscc.title
                     );
                 } else {
@@ -251,6 +254,13 @@ enum GeneralMediaType {
     Video(String),
 }
 impl GeneralMediaType {
+    fn is_tika_extract(&self) -> bool {
+        match self {
+            GeneralMediaType::Text(_ft) => true,
+            _ => false,
+        }
+    }
+
     fn extract(&self, file: &str) -> Result<(String, String, String), Box<dyn Error>> {
         match self {
             GeneralMediaType::Text(_ft) if _ft == "plain" => {
@@ -342,16 +352,20 @@ impl GeneralMediaType {
         tikaconfig: &TikaConfig,
         file: &str,
     ) -> Result<(String, String, String), Box<dyn Error>> {
-        let contents = tika::request::text(&tikaconfig, file).unwrap();
-        //eprintln!("tika extract");
-        let mut firstline = "";
-        for l in contents.lines() {
-            if l.trim() != "" {
-                firstline = l;
-                break;
+        let contents = tika::request::text(&tikaconfig, file)?;
+        let mut title = "";
+        let metatitle = tika::request::title(&tikaconfig, file)?;
+        if metatitle != "" {
+            title = &metatitle;
+        } else {
+            for l in contents.lines() {
+                if l.trim() != "" {
+                    title = l;
+                    break;
+                }
             }
         }
-        Ok((contents.to_string(), firstline.to_string(), "".to_string()))
+        Ok((contents.to_string(), title.to_string(), "".to_string()))
     }
 
     fn get_gmt_string(&self) -> String {
@@ -440,8 +454,8 @@ fn get_iscc_id(
     } else {
         get_gmt_from_file(file)?
     };
-    //eprintln!("mediatype: {:?}", mediatype);
-    let mut extract = if tikaconfig.active {
+
+    /*let mut extract = if tikaconfig.active && mediatype.is_tika_extract() {
         mediatype
             .extract_tika(&tikaconfig, &file.to_string())
             .unwrap_or(("".to_string(), "".to_string(), "".to_string()))
@@ -451,6 +465,11 @@ fn get_iscc_id(
             "".to_string(),
             "".to_string(),
         ))
+    };*/
+    let mut extract = if tikaconfig.active && mediatype.is_tika_extract() {
+        mediatype.extract_tika(&tikaconfig, &file.to_string())?
+    } else {
+        mediatype.extract(&file.to_string())?
     };
     if !guess {
         extract.1 = title.to_string();
