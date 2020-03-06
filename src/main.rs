@@ -9,7 +9,7 @@ pub mod tika;
 use std::error::Error;
 static BATCH_MAX_DIRLEVEL: usize = 1000;
 
-use iscc::{content_id_image, content_id_text, data_id, instance_id, meta_id,base58::decode};
+use iscc::{base58::decode, content_id_image, content_id_text, data_id, instance_id, meta_id};
 
 use clap::{App, AppSettings, Arg, SubCommand};
 

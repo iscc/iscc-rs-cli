@@ -156,8 +156,6 @@ fn test_sim() -> Result<(), Box<dyn std::error::Error>> {
         .arg("CDij3vGU1BkCZ");
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Estimated Similarity: 51.56",
-        ));
+        .stdout(predicate::str::contains("Estimated Similarity: 51.56"));
     Ok(())
 }
