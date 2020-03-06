@@ -9,7 +9,7 @@ pub mod tika;
 use std::error::Error;
 static BATCH_MAX_DIRLEVEL: usize = 1000;
 
-use iscc::{content_id_image, content_id_text, data_id, instance_id, meta_id};
+use iscc::{content_id_image, content_id_text, data_id, instance_id, meta_id,base58::decode};
 
 use clap::{App, AppSettings, Arg, SubCommand};
 
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Arg::with_name("dir")
                         .short("d")
                         .long("dir")
-                        .help("Dirctory to create iscc codes for.")
+                        .help("Directory to create iscc codes for.")
                         .value_name("PATH")
                         .takes_value(true)
                         .required(true),
@@ -91,6 +91,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .short("g")
                         .long("guess")
                         .help("Guess title (first line of text)."),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("sim")
+                .about("  Estimate Similarity of ISCC Codes A & B.\n$ iscc sim -a CCUcKwdQc1jUM -b CCjMmrCsKWu1D")
+                .version("0.1")
+                .author("Thilo Hille<hillethilo@gmail.com>")
+                .arg(
+                    Arg::with_name("ISCCa")
+                        .short("a")
+                        .help("1. ISCC to compare")
+                        .value_name("ISCCa")
+                        .takes_value(true)
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("ISCCb")
+                        .short("b")
+                        .help("2. ISCC to compare")
+                        .value_name("ISCCb")
+                        .takes_value(true)
+                        .required(true),
                 ),
         )
         .arg(
@@ -161,6 +183,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         if matches.is_present("dir") {
             cmd.execute()?;
         }
+        Ok(())
+    } else if let Some(matches) = matches.subcommand_matches("sim") {
+        let iscca = matches.value_of("ISCCa").unwrap_or("").to_string();
+        let isccb = matches.value_of("ISCCb").unwrap_or("").to_string();
+        let digesta = decode(&iscca);
+        let digestb = decode(&isccb);
+        let mut arraya: [u8; 16] = [0; 16];
+        arraya[16 - digesta.len()..].copy_from_slice(&digesta);
+        let dnuma = u128::from_be_bytes(arraya);
+        let mut arrayb: [u8; 16] = [0; 16];
+        arrayb[16 - digestb.len()..].copy_from_slice(&digestb);
+        let dnumb = u128::from_be_bytes(arrayb);
+        let digestor = dnuma ^ dnumb;
+        let dist = digestor.count_ones() as f64;
+        let similarity: f64 = ((64.0 - dist) / 64.0) * 100.0;
+        println!("Estimated Similarity of Data-ID: {:.2}", similarity);
         Ok(())
     } else {
         Ok(())
