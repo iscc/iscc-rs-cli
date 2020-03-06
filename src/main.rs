@@ -189,16 +189,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         let isccb = matches.value_of("ISCCb").unwrap_or("").to_string();
         let digesta = decode(&iscca);
         let digestb = decode(&isccb);
-        let mut arraya: [u8; 16] = [0; 16];
-        arraya[16 - digesta.len()..].copy_from_slice(&digesta);
-        let dnuma = u128::from_be_bytes(arraya);
-        let mut arrayb: [u8; 16] = [0; 16];
-        arrayb[16 - digestb.len()..].copy_from_slice(&digestb);
-        let dnumb = u128::from_be_bytes(arrayb);
+        let mut arraya: [u8; 8] = [0; 8];
+        arraya[0..].copy_from_slice(&digesta[1..9]);
+        let dnuma = u64::from_be_bytes(arraya);
+        let mut arrayb: [u8; 8] = [0; 8];
+        arrayb[0..].copy_from_slice(&digestb[1..9]);
+        let dnumb = u64::from_be_bytes(arrayb);
         let digestor = dnuma ^ dnumb;
         let dist = digestor.count_ones() as f64;
         let similarity: f64 = ((64.0 - dist) / 64.0) * 100.0;
-        println!("Estimated Similarity of Data-ID: {:.2}", similarity);
+        println!("Estimated Similarity: {:.2}", similarity);
         Ok(())
     } else {
         Ok(())

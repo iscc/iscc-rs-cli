@@ -146,3 +146,18 @@ fn test_batch() -> Result<(), Box<dyn std::error::Error>> {
         ));
     Ok(())
 }
+#[test]
+fn test_sim() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = Command::cargo_bin("iscc-cli")?;
+    cmd.arg("sim")
+        .arg("-a")
+        .arg("CDcRsq2Wu1x8N")
+        .arg("-b")
+        .arg("CDij3vGU1BkCZ");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Estimated Similarity: 51.56",
+        ));
+    Ok(())
+}
